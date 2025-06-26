@@ -1,0 +1,37 @@
+from flask import Flask, request, jsonify, session from flask_cors import CORS from functools import wraps import random
+
+app = Flask(name) app.secret_key = 'super-secret-key' CORS(app)
+
+--- In-Memory DB ---
+
+USERS = {"player1": {"balance": 100}} ADMINS = {"admin": "password123"} REDEMPTIONS = []
+
+SLOT_SYMBOLS = ["🍒", "🍋", "🔔", "💎", "7️⃣"]
+
+--- Auth ---
+
+def login_required(f): @wraps(f) def decorated(*args, **kwargs): if not session.get("admin"): return jsonify({"error": "Unauthorized"}), 401 return f(*args, **kwargs) return decorated
+
+--- Slot Spin ---
+
+@app.route("/spin/<machine_id>", methods=["POST"]) def spin(machine_id): data = request.get_json() username = data.get("username") if username not in USERS: return jsonify({"error": "Invalid user"}), 400
+
+user = USERS[username]
+if user["balance"] <= 0:
+    return jsonify({"error": "Insufficient balance"}), 400
+
+user["balance"] -= 1
+result = [random.choice(SLOT_SYMBOLS) for _ in range(3)]
+win = 10 if len(set(result)) == 1 else 0
+user["balance"] += win
+
+return jsonify({"result": result, "win": win, "balance": user["balance"]})
+
+--- Admin Login ---
+
+@app.route("/login", methods=["POST"]) def admin_login(): data = request.get_json() username = data.get("username") password = data.get("password")
+
+if ADMINS.get(username) == password:
+    session["admin"] = username
+    return jsonify({"message": "Logged in"})
+
